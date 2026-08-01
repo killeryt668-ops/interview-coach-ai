@@ -31,7 +31,14 @@ export default function App() {
   const frameIntervalRef = useRef(null);
   const audioIntervalRef = useRef(null);
 
-  // Clean up media streams and loops when screen changes
+  // Always bind active media stream to videoRef whenever stream, screen, or cameraActive changes
+  useEffect(() => {
+    if (stream && videoRef.current && cameraActive) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream, screen, cameraActive]);
+
+  // Clean up media streams and loops on unmount
   useEffect(() => {
     return () => {
       stopAllMedia();
@@ -130,6 +137,64 @@ export default function App() {
         audioTrack.enabled = !audioTrack.enabled;
         setMicActive(audioTrack.enabled);
       }
+    }
+  };
+
+  // Start Practice in Demo/Simulation Mode (if webcam or mic hardware is unavailable/blocked)
+  const startDemoMode = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/start-interview`, { method: 'POST' });
+      if (!response.ok) throw new Error('Failed to connect to backend server.');
+      
+      const data = await response.json();
+      setSessionId(data.session_id);
+      setIsRecording(true);
+      setScreen('practice');
+      
+      // Simulated frame capture loop
+      frameIntervalRef.current = setInterval(async () => {
+        const dummyBlob = new Blob(["dummy_frame_content"], { type: 'image/jpeg' });
+        const formData = new FormData();
+        formData.append('session_id', data.session_id);
+        formData.append('frame', dummyBlob, 'frame.jpg');
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/process-frame`, { method: 'POST', body: formData });
+          if (res.ok) {
+            const resData = await res.json();
+            setCurrentEmotion(resData.emotion);
+            setLiveVisualHint(resData.hint);
+          }
+        } catch (e) {
+          console.warn('Demo frame loop warning:', e);
+        }
+      }, 3000);
+
+      // Simulated audio capture loop
+      audioIntervalRef.current = setInterval(async () => {
+        const dummyAudio = new Blob(["dummy_audio_content"], { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('session_id', data.session_id);
+        formData.append('audio', dummyAudio, 'audio.webm');
+        formData.append('duration', '4.0');
+
+        try {
+          const res = await fetch(`${API_BASE_URL}/process-audio`, { method: 'POST', body: formData });
+          if (res.ok) {
+            const resData = await res.json();
+            if (resData.transcript) {
+              setTranscripts(prev => [...prev, resData.transcript]);
+            }
+            setLiveSpeechHint(resData.hint);
+          }
+        } catch (e) {
+          console.warn('Demo audio loop warning:', e);
+        }
+      }, 4000);
+
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Failed to connect to the backend server. Make sure FastAPI is running on port 8000.');
     }
   };
 
@@ -422,11 +487,16 @@ export default function App() {
             )}
           </div>
 
-          <div className="setup-controls-row" style={{ flexWrap: 'wrap' }}>
+          <div className="setup-controls-row" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
             {permissionDenied || !stream ? (
-              <button className="btn btn-primary" onClick={requestMediaAccess}>
-                🔄 Retry Permission Request
-              </button>
+              <>
+                <button className="btn btn-primary" onClick={requestMediaAccess}>
+                  🔄 Retry Permission Request
+                </button>
+                <button className="btn btn-secondary" onClick={startDemoMode} style={{ borderColor: 'var(--secondary)' }}>
+                  ⚡ Start in Demo Mode (No Camera)
+                </button>
+              </>
             ) : null}
             <button className="btn btn-secondary" onClick={toggleCamera}>
               {cameraActive ? '🎥 Turn Camera Off' : '🎥 Turn Camera On'}
