@@ -6,6 +6,10 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import sys
+sys.path.insert(0, '.')
+from ai_model.emotional_intelligence_engine import EmotionalIntelligenceModel
+from ai_model.speaking_skills_engine import SpeakingSkillsModel
 
 # Load environment variables from .env file
 load_dotenv()
@@ -42,12 +46,16 @@ class AudioProcessResponse(BaseModel):
 
 class ReportResponse(BaseModel):
     overall_score: int
-    scores: Dict[str, int]  # confidence, clarity, structure, tone
+    scores: Dict[str, int]
     tips: List[str]
     improved_answer: str
     transcript: str
     emotions_detected: List[str]
     session_duration: float
+    emotional_insights: Optional[Dict[str, int]] = None
+    speaking_insights: Optional[Dict] = None
+    eq_overall: Optional[int] = None
+    speaking_overall: Optional[int] = None
 
 # ==========================================
 # PLACEHOLDER FUNCTIONS FOR REAL APIS
@@ -125,103 +133,67 @@ def transcribe_audio(audio_bytes: bytes) -> str:
 
 def get_llm_feedback(transcript: str, emotion_summary: dict, speech_metrics: dict) -> dict:
     """
-    PLACEHOLDER: Send the interview metrics and transcripts to an LLM to generate feedback.
-    
-    HOW TO IMPLEMENT THE REAL API LATER:
-    1. Read the API key from environment variables:
-       api_key = os.getenv("LLM_API_KEY")
-       api_url = os.getenv("LLM_API_BASE_URL") or "https://api.openai.com/v1"
-    
-    2. Construct a prompt:
-       prompt = f'''
-       Analyze this job interview transcript and performance metrics:
-       - Transcript: {transcript}
-       - Emotion Breakdown: {emotion_summary}
-       - Speech Metrics: {speech_metrics}
-       
-       Provide feedback containing:
-       1. Overall score (0-100)
-       2. Scores for Confidence, Clarity, Structure, Tone (0-100)
-       3. Three bullet points of action-oriented coaching advice.
-       4. An improved version of their answers, keeping their core background but polishing the structure (e.g., STAR method).
-       
-       Format the response strictly as a JSON object:
-       {{
-         "overall_score": 85,
-         "scores": {{"confidence": 80, "clarity": 90, "structure": 82, "tone": 88}},
-         "tips": ["tip 1", "tip 2", "tip 3"],
-         "improved_answer": "polished version..."
-       }}
-       '''
-       
-    3. Make a request to the LLM (OpenAI, Gemini, or Anthropic):
-       import openai
-       client = openai.OpenAI(api_key=api_key, base_url=api_url)
-       
-       response = client.chat.completions.create(
-           model="gpt-4-turbo", # or "gemini-1.5-flash", etc.
-           response_format={"type": "json_object"},
-           messages=[
-               {"role": "system", "content": "You are a professional executive career coach."},
-               {"role": "user", "content": prompt}
-           ]
-       )
-       return json.loads(response.choices[0].message.content)
+    AI Coaching Model — Emotional Intelligence + Speaking Skills
+    Uses EmotionalIntelligenceModel and SpeakingSkillsModel.
     """
-    # Calculate a mock score based on the data points
-    # Stressed emotions will lower confidence score slightly
-    stressed_count = emotion_summary.get("stressed", 0)
-    confident_count = emotion_summary.get("confident", 0)
-    total_frames = sum(emotion_summary.values()) or 1
-    
-    stressed_ratio = stressed_count / total_frames
-    confident_ratio = confident_count / total_frames
-    
-    confidence_score = int(80 + (confident_ratio * 20) - (stressed_ratio * 30))
-    confidence_score = max(50, min(100, confidence_score))
-    
-    clarity_score = random.randint(75, 95)
-    structure_score = random.randint(70, 92)
-    tone_score = int(82 + (emotion_summary.get("happy", 0) / total_frames * 18))
-    tone_score = max(60, min(100, tone_score))
-    
-    overall_score = int((confidence_score + clarity_score + structure_score + tone_score) / 4)
-    
-    # Generate generic yet relevant coaching tips based on performance
-    tips = []
-    if stressed_ratio > 0.15:
-        tips.append("You showed signs of tension. Try practicing deep-breathing techniques to relax your posture and maintain steady eye contact.")
-    else:
-        tips.append("Excellent non-verbal posture. Your facial expressions conveyed openness and enthusiasm.")
-        
-    wpm = speech_metrics.get("average_wpm", 130)
-    if wpm > 150:
-        tips.append("Your speech rate was slightly fast (approx. 160 WPM). Slow down when delivering key technical terms to allow the interviewer to digest them.")
-    elif wpm < 100:
-        tips.append("Your speed was measured on the slower side. Try to build a bit more vocal energy and pacing to keep the conversation engaging.")
-    else:
-        tips.append("Your speaking speed was right in the sweet spot (120-140 WPM), making your answers easy to follow.")
+    eq_model = EmotionalIntelligenceModel()
+    speak_model = SpeakingSkillsModel()
 
-    tips.append("Structure your examples using the STAR method: Situation, Task, Action, and Result, ensuring you highlight your personal contributions.")
-    tips.append("When discussing weaknesses, follow up immediately with how you are proactively working to improve them.")
+    emotion_list = []
+    for emo, count in emotion_summary.items():
+        emotion_list.extend([emo] * count)
+    eq_result = eq_model.analyze_emotions(emotion_list)
+    eq_tips = eq_model.generate_eq_insights(eq_result, transcript)
+
+    avg_wpm = speech_metrics.get("average_wpm", 130)
+    speak_result = speak_model.analyze_speech(transcript, avg_wpm)
+    speak_tips = speak_model.generate_speaking_insights(speak_result)
+
+    confidence_score = max(50, min(100, int(speak_result["confidence"] + eq_result["dimensions"]["self_regulation"] * 0.3)))
+    clarity_score = max(50, min(100, int(speak_result["clarity"])))
+    structure_score = max(50, min(100, int(speak_result["structure"])))
+    tone_score = max(50, min(100, int(eq_result["dimensions"]["empathy"] * 0.5 + speak_result["confidence"] * 0.5)))
+    emotional_intelligence_score = eq_result["overall_eq"]
+    speaking_skills_score = speak_result["overall_speaking_score"]
+
+    overall_score = int(
+        (confidence_score * 0.2) + (clarity_score * 0.15) + (structure_score * 0.15) +
+        (tone_score * 0.1) + (emotional_intelligence_score * 0.2) + (speaking_skills_score * 0.2)
+    )
+
+    tips = eq_tips + speak_tips
+    tips.append("Structure your examples using STAR: Situation, Task, Action, Result — with emotional framing in each section.")
+    tips.append("When discussing weaknesses, immediately share how you are improving — it shows emotional maturity and growth mindset.")
+    tips.append("Build rapport by briefly validating the interviewer (e.g., 'That highlights exactly why collaboration matters to me').")
 
     improved_answer = (
-        "Situation: In my last role, we faced a sudden drop in API throughput due to unoptimized database queries. "
-        "Task: I was tasked with identifying the root bottleneck and implementing a fix within a 48-hour SLA. "
-        "Action: I analyzed query execution plans, set up indexing on hot foreign keys, and added a caching layer using Redis for read-heavy queries. "
-        "Result: This reduced search latency by 65% and successfully stabilized backend memory usage during peak traffic."
-    )
-    
+        "Situation: In my last role, we faced a sudden drop in API throughput due to unoptimized database queries affecting customer experience. "
+        "Task: I was tasked with identifying the root bottleneck and fixing it within 48 hours while keeping the team aligned. "
+        "Action: I analyzed execution plans, indexed hot foreign keys, added Redis caching, and held a brief stand-up to align priorities — showing empathy for workload. "
+        "Result: Search latency dropped 65%, memory stabilized at peak traffic, and team collaboration improved.")
+
     return {
         "overall_score": overall_score,
         "scores": {
             "confidence": confidence_score,
             "clarity": clarity_score,
             "structure": structure_score,
-            "tone": tone_score
+            "tone": tone_score,
+            "emotional_intelligence": emotional_intelligence_score,
+            "speaking_skills": speaking_skills_score,
+        },
+        "emotional_insights": eq_result["dimensions"],
+        "speaking_insights": {
+            "wpm": avg_wpm,
+            "filler_word_rate": speak_result.get("filler_word_rate", "low"),
+            "articulation_score": speak_result.get("articulation", 80),
+            "confidence_markers": speak_result.get("confidence_markers", []),
+            "star_tags_found": speak_result.get("star_tags_found", []),
         },
         "tips": tips,
-        "improved_answer": improved_answer
+        "improved_answer": improved_answer,
+        "eq_overall": eq_result["overall_eq"],
+        "speaking_overall": speak_result["overall_speaking_score"],
     }
 
 
@@ -373,7 +345,11 @@ def get_report(session_id: str = Form(...)):
         improved_answer=feedback["improved_answer"],
         transcript=full_transcript,
         emotions_detected=list(emotion_summary.keys()) if emotion_summary else ["neutral"],
-        session_duration=round(session_duration, 1)
+        session_duration=round(session_duration, 1),
+        emotional_insights=feedback.get("emotional_insights"),
+        speaking_insights=feedback.get("speaking_insights"),
+        eq_overall=feedback.get("eq_overall"),
+        speaking_overall=feedback.get("speaking_overall"),
     )
 
 if __name__ == "__main__":
