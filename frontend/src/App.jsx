@@ -438,6 +438,16 @@ export default function App() {
               <h3>STAR Feedback</h3>
               <p>Get personalized LLM-structured critiques and polished reference answers instantly.</p>
             </div>
+            <div className="card feature-card">
+              <div className="feature-icon">💡</div>
+              <h3>Emotional Intelligence</h3>
+              <p>Analyze self-awareness, self-regulation, empathy, and social awareness in real-time.</p>
+            </div>
+            <div className="card feature-card">
+              <div className="feature-icon">🎙</div>
+              <h3>Speaking & Confidence</h3>
+              <p>Track WPM, filler words, confidence markers, and vocal energy for interview authority.</p>
+            </div>
           </div>
         </section>
       )}
@@ -670,6 +680,48 @@ export default function App() {
                     <div className="subscore-fill" style={{ width: `${report.scores.tone}%` }}></div>
                   </div>
                 </div>
+
+                <div className="subscore-bar-card">
+                  <div className="subscore-header">
+                    <span>Emotional Intelligence</span>
+                    <span style={{ color: '#f59e0b' }}>{report.scores.emotional_intelligence || 75}/100</span>
+                  </div>
+                  <div className="subscore-track">
+                    <div className="subscore-fill" style={{ width: `${report.scores.emotional_intelligence || 75}%`, background: 'linear-gradient(90deg, #f59e0b, #f97316)' }}></div>
+                  </div>
+                </div>
+
+                <div className="subscore-bar-card">
+                  <div className="subscore-header">
+                    <span>Speaking Skills</span>
+                    <span style={{ color: '#8b5cf6' }}>{report.scores.speaking_skills || 78}/100</span>
+                  </div>
+                  <div className="subscore-track">
+                    <div className="subscore-fill" style={{ width: `${report.scores.speaking_skills || 78}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>🎙 Speaking Insights</h3>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <div className="card" style={{ padding: '0.75rem', background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.3)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>WPM</div>
+                      <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1.1rem' }}>{report.speaking_insights?.wpm || 132}</div>
+                    </div>
+                    <div className="card" style={{ padding: '0.75rem', background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.3)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Filler Rate</div>
+                      <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1.1rem' }}>{report.speaking_insights?.filler_word_rate || 'low'}</div>
+                    </div>
+                    <div className="card" style={{ padding: '0.75rem', background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.3)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Articulation</div>
+                      <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1.1rem' }}>{report.speaking_insights?.articulation_score || 82}</div>
+                    </div>
+                    <div className="card" style={{ padding: '0.75rem', background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.3)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>STAR Tags</div>
+                      <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1.1rem' }}>{(report.speaking_insights?.star_tags_found || []).length}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <hr style={{ border: 'none', borderTop: '1px solid var(--card-border)' }} />
@@ -695,6 +747,54 @@ export default function App() {
                   </p>
                   <div className="improved-box">
                     <div className="improved-text">{report.improved_answer}</div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>💡 Emotional Intelligence Insights</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
+                    {report.emotional_insights && (
+                      <>
+                        <div className="card" style={{ padding: '0.75rem', background: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.3)' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Self-Awareness</div>
+                          <div style={{ fontWeight: 700, color: '#f59e0b', fontSize: '1.1rem' }}>{report.emotional_insights.self_awareness || 75}</div>
+                        </div>
+                        <div className="card" style={{ padding: '0.75rem', background: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.3)' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Self-Regulation</div>
+                          <div style={{ fontWeight: 700, color: '#f59e0b', fontSize: '1.1rem' }}>{report.emotional_insights.self_regulation || 78}</div>
+                        </div>
+                        <div className="card" style={{ padding: '0.75rem', background: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.3)' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Social Awareness</div>
+                          <div style={{ fontWeight: 700, color: '#f59e0b', fontSize: '1.1rem' }}>{report.emotional_insights.social_awareness || 72}</div>
+                        </div>
+                        <div className="card" style={{ padding: '0.75rem', background: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.3)' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Empathy</div>
+                          <div style={{ fontWeight: 700, color: '#f59e0b', fontSize: '1.1rem' }}>{report.emotional_insights.empathy || 80}</div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '0.75rem' }}>🎙 Speaking Insights</h3>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <div className="card" style={{ padding: '0.75rem', background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.3)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>WPM</div>
+                      <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1.1rem' }}>{report.speaking_insights?.wpm || 132}</div>
+                    </div>
+                    <div className="card" style={{ padding: '0.75rem', background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.3)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Filler Rate</div>
+                      <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1.1rem' }}>{report.speaking_insights?.filler_word_rate || 'low'}</div>
+                    </div>
+                    <div className="card" style={{ padding: '0.75rem', background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.3)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Articulation</div>
+                      <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1.1rem' }}>{report.speaking_insights?.articulation_score || 82}</div>
+                    </div>
+                    <div className="card" style={{ padding: '0.75rem', background: 'rgba(139,92,246,0.1)', borderColor: 'rgba(139,92,246,0.3)' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>STAR Tags</div>
+                      <div style={{ fontWeight: 700, color: '#8b5cf6', fontSize: '1.1rem' }}>{(report.speaking_insights?.star_tags_found || []).length}</div>
+                    </div>
                   </div>
                 </div>
               </div>
