@@ -61,6 +61,10 @@ export default function App() {
   
   // Active session status & recorders
   const [isRecording, setIsRecording] = useState(false);
+  const isRecordingRef = useRef(isRecording);
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
   const [report, setReport] = useState(null);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
 
@@ -446,6 +450,8 @@ export default function App() {
   };
 
   const startSpeechRecognition = () => {
+    stopSpeechRecognition();
+    
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       console.warn("Speech recognition not supported in this browser.");
@@ -458,34 +464,30 @@ export default function App() {
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
+      recognition.onspeechstart = () => {
+        if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+          window.speechSynthesis.cancel();
+        }
+      };
+
       recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+        if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+          window.speechSynthesis.cancel();
+        }
+
+        let interimText = '';
+        let finalText = '';
         
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        for (let i = 0; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' ';
+            finalText += event.results[i][0].transcript + ' ';
           } else {
-            interimTranscript += event.results[i][0].transcript;
+            interimText += event.results[i][0].transcript;
           }
         }
         
-        if (finalTranscript) {
-          setCurrentQuestionTranscript(prev => {
-            const cleanPrev = prev.trim();
-            const cleanFinal = finalTranscript.trim();
-            if (cleanPrev.endsWith(cleanFinal) || cleanPrev.includes(cleanFinal)) {
-              return prev;
-            }
-            return prev ? prev + ' ' + cleanFinal : cleanFinal;
-          });
-          
-          setTranscripts(prev => {
-            const cleanFinal = finalTranscript.trim();
-            if (prev.includes(cleanFinal)) return prev;
-            return [...prev, cleanFinal];
-          });
-        }
+        setCurrentQuestionTranscript(finalText);
+        setInterimTranscript(interimText);
       };
 
       recognition.onerror = (event) => {
@@ -493,8 +495,7 @@ export default function App() {
       };
 
       recognition.onend = () => {
-        // Automatically restart if recording is still active
-        if (isRecording) {
+        if (isRecordingRef.current && speechRecognitionRef.current === recognition) {
           try {
             recognition.start();
           } catch (e) {
@@ -536,6 +537,8 @@ export default function App() {
   };
 
   const submitAndEvaluateAnswer = () => {
+    stopSpeechRecognition();
+    
     const currentQuestion = QUESTIONS[currentQuestionIdx];
     // Combine final transcript with any remaining interim text
     const finalAnswer = (currentQuestionTranscript + ' ' + interimTranscript).trim();
@@ -565,6 +568,11 @@ export default function App() {
     
     setEvaluation({ rating, feedback });
     
+    // Append the final answer to the global transcripts array so backend still logs it
+    if (finalAnswer) {
+      setTranscripts(prev => [...prev, finalAnswer]);
+    }
+    
     // Speak feedback out loud
     const speakTextContent = rating === 'Needs Improvement'
       ? `Answer needs improvement. Let's try this question again. ${feedback}`
@@ -592,6 +600,7 @@ export default function App() {
           setCurrentQuestionTranscript('');
           setInterimTranscript('');
           speakText(currentQuestion.question);
+          startSpeechRecognition();
         } else {
           // Advance or end
           if (currentQuestionIdx + 1 < QUESTIONS.length) {
@@ -600,6 +609,7 @@ export default function App() {
             setCurrentQuestionTranscript('');
             setInterimTranscript('');
             speakText(QUESTIONS[nextIdx].question);
+            startSpeechRecognition();
           } else {
             endPractice();
           }
