@@ -3,8 +3,47 @@ import React, { useState, useRef, useEffect } from 'react';
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
+const QUESTIONS = [
+  {
+    id: 1,
+    question: "Tell me about yourself and your background in software engineering.",
+    keywords: ["experience", "engineering", "software", "python", "javascript", "developer", "build", "project"],
+    details: "Mention your tech stack, recent projects, and overall passion for code."
+  },
+  {
+    id: 2,
+    question: "Can you describe a challenging technical problem you solved, and how you approached it?",
+    keywords: ["solved", "problem", "bug", "database", "optimize", "debug", "approach", "scale"],
+    details: "Explain the issue, the logic you used to solve it, and the final results."
+  },
+  {
+    id: 3,
+    question: "Why do you want to work with our team, and how do you handle collaborative projects?",
+    keywords: ["team", "collaborate", "help", "learn", "communicate", "trust", "contribution", "share"],
+    details: "Highlight your communication style, teamwork principles, and interest in this role."
+  },
+  {
+    id: 4,
+    question: "How do you prioritize milestones and handle deadline pressures under stressful conditions?",
+    keywords: ["prioritize", "pressure", "deadline", "schedule", "plan", "milestone", "manage", "calendar"],
+    details: "Describe how you break down tasks, communicate timelines, and stay calm."
+  },
+  {
+    id: 5,
+    question: "Can you share an example of a mistake you made, and what you learned from it?",
+    keywords: ["mistake", "learned", "growth", "improvement", "feedback", "responsibility", "better", "fix"],
+    details: "Own the mistake honestly, show how you fixed it, and explain how you grew from it."
+  }
+];
+
 export default function App() {
   const [screen, setScreen] = useState('home'); // 'home', 'setup', 'practice', 'report'
+  
+  // Interactive mock interview states
+  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
+  const [currentQuestionTranscript, setCurrentQuestionTranscript] = useState('');
+  const [evaluation, setEvaluation] = useState(null); // { rating: 'Good', feedback: '...' }
+  const [countdown, setCountdown] = useState(null); // countdown seconds
   const [sessionId, setSessionId] = useState(null);
   
   // Media Stream States
@@ -30,6 +69,7 @@ export default function App() {
   const canvasRef = useRef(null);
   const frameIntervalRef = useRef(null);
   const audioIntervalRef = useRef(null);
+  const evaluationIntervalRef = useRef(null);
 
   // Always bind active media stream to videoRef whenever stream, screen, or cameraActive changes
   useEffect(() => {
@@ -56,6 +96,7 @@ export default function App() {
   const clearIntervals = () => {
     if (frameIntervalRef.current) clearInterval(frameIntervalRef.current);
     if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+    if (evaluationIntervalRef.current) clearInterval(evaluationIntervalRef.current);
   };
 
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -151,6 +192,12 @@ export default function App() {
       setIsRecording(true);
       setScreen('practice');
       
+      setCurrentQuestionIdx(0);
+      setCurrentQuestionTranscript('');
+      setEvaluation(null);
+      setCountdown(null);
+      speakText(QUESTIONS[0].question);
+      
       // Simulated frame capture loop
       frameIntervalRef.current = setInterval(async () => {
         const dummyBlob = new Blob(["dummy_frame_content"], { type: 'image/jpeg' });
@@ -184,6 +231,7 @@ export default function App() {
             const resData = await res.json();
             if (resData.transcript) {
               setTranscripts(prev => [...prev, resData.transcript]);
+              setCurrentQuestionTranscript(prev => prev ? prev + ' ' + resData.transcript : resData.transcript);
             }
             setLiveSpeechHint(resData.hint);
           }
@@ -214,6 +262,12 @@ export default function App() {
       setSessionId(data.session_id);
       setIsRecording(true);
       setScreen('practice');
+      
+      setCurrentQuestionIdx(0);
+      setCurrentQuestionTranscript('');
+      setEvaluation(null);
+      setCountdown(null);
+      speakText(QUESTIONS[0].question);
       
       // Ensure local stream is properly assigned to the video element in practice view
       setTimeout(() => {
@@ -320,6 +374,7 @@ export default function App() {
           // Add transcription to real-time stream feed
           if (data.transcript && data.transcript.trim() !== '') {
             setTranscripts(prev => [...prev, data.transcript]);
+            setCurrentQuestionTranscript(prev => prev ? prev + ' ' + data.transcript : data.transcript);
           }
           setLiveSpeechHint(data.hint);
         }
@@ -383,6 +438,79 @@ export default function App() {
     }
   };
 
+  const speakText = (text, callback) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      if (callback) {
+        utterance.onend = callback;
+      }
+      window.speechSynthesis.speak(utterance);
+    } else if (callback) {
+      callback();
+    }
+  };
+
+  const submitAndEvaluateAnswer = () => {
+    const currentQuestion = QUESTIONS[currentQuestionIdx];
+    const answerText = currentQuestionTranscript.toLowerCase();
+    
+    // Check keyword matches
+    const matchedKeywords = currentQuestion.keywords.filter(keyword => answerText.includes(keyword));
+    const keywordCount = matchedKeywords.length;
+    const wordCount = answerText.split(/\s+/).filter(Boolean).length;
+    
+    let rating = 'Needs Improvement';
+    let feedback = '';
+    
+    if (wordCount < 5) {
+      rating = 'Needs Improvement';
+      feedback = "Your answer was very short. Try to elaborate using the STAR structure.";
+    } else if (keywordCount >= 4) {
+      rating = 'Excellent';
+      feedback = `Great answer! You covered key concepts: ${matchedKeywords.slice(0, 3).join(', ')}.`;
+    } else if (keywordCount >= 1) {
+      rating = 'Good';
+      feedback = `Good response. Try to mention more details like: ${currentQuestion.keywords.filter(k => !matchedKeywords.includes(k)).slice(0, 2).join(', ')}.`;
+    } else {
+      rating = 'Needs Improvement';
+      feedback = `We suggest mentioning: ${currentQuestion.keywords.slice(0, 2).join(', ')}.`;
+    }
+    
+    setEvaluation({ rating, feedback });
+    
+    // Speak feedback out loud
+    const speakTextContent = `${rating} answer. ${feedback} Moving to the next question shortly.`;
+    speakText(speakTextContent);
+    
+    // Start 5-second countdown to next question
+    let secondsLeft = 5;
+    setCountdown(secondsLeft);
+    
+    if (evaluationIntervalRef.current) clearInterval(evaluationIntervalRef.current);
+    
+    evaluationIntervalRef.current = setInterval(() => {
+      secondsLeft -= 1;
+      setCountdown(secondsLeft);
+      if (secondsLeft <= 0) {
+        clearInterval(evaluationIntervalRef.current);
+        setCountdown(null);
+        setEvaluation(null);
+        
+        // Go to next question or end practice
+        if (currentQuestionIdx + 1 < QUESTIONS.length) {
+          const nextIdx = currentQuestionIdx + 1;
+          setCurrentQuestionIdx(nextIdx);
+          setCurrentQuestionTranscript('');
+          speakText(QUESTIONS[nextIdx].question);
+        } else {
+          endPractice();
+        }
+      }
+    }, 1000);
+  };
+
   const handleRestart = () => {
     // Reset state variables
     setSessionId(null);
@@ -391,6 +519,13 @@ export default function App() {
     setCurrentEmotion('neutral');
     setLiveVisualHint('Align yourself in the frame and look into the camera.');
     setLiveSpeechHint('Speak clearly at a moderate volume.');
+    setCurrentQuestionIdx(0);
+    setCurrentQuestionTranscript('');
+    setEvaluation(null);
+    setCountdown(null);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
     setScreen('home');
   };
 
@@ -538,6 +673,75 @@ export default function App() {
             <button className="btn btn-danger" onClick={endPractice}>
               ⏹️ Finish Practice
             </button>
+          </div>
+
+          {/* Interactive Question Panel */}
+          <div className="card question-card" style={{ marginBottom: '1.5rem', background: 'rgba(255, 255, 255, 0.03)', borderLeft: '4px solid var(--primary)', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Question {currentQuestionIdx + 1} of {QUESTIONS.length}
+              </span>
+              <button className="btn btn-secondary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.85rem' }} onClick={() => speakText(QUESTIONS[currentQuestionIdx].question)}>
+                🔊 Re-play Question
+              </button>
+            </div>
+            <h3 style={{ fontSize: '1.35rem', fontFamily: 'var(--font-display)', marginBottom: '0.75rem', lineHeight: '1.4', color: 'var(--text-primary)' }}>
+              {QUESTIONS[currentQuestionIdx].question}
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', margin: 0, fontStyle: 'italic' }}>
+              💡 Tip: {QUESTIONS[currentQuestionIdx].details}
+            </p>
+            
+            {/* Live Transcript / Input */}
+            <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Your Answer Transcript:</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  {currentQuestionTranscript.split(/\s+/).filter(Boolean).length} words
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: '0.95rem', minHeight: '2.5rem', color: currentQuestionTranscript ? 'var(--text-primary)' : 'var(--text-muted)', fontStyle: currentQuestionTranscript ? 'normal' : 'italic' }}>
+                {currentQuestionTranscript || "Start speaking into your mic to answer this question..."}
+              </p>
+            </div>
+
+            {/* Evaluation & Feedback Overlay */}
+            {evaluation && (
+              <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: 'var(--radius-sm)', background: evaluation.rating === 'Excellent' ? 'rgba(16, 185, 129, 0.12)' : evaluation.rating === 'Good' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(239, 68, 68, 0.12)', border: evaluation.rating === 'Excellent' ? '1px solid rgba(16, 185, 129, 0.3)' : evaluation.rating === 'Good' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                  <span style={{ fontWeight: 700, fontSize: '1.1rem', color: evaluation.rating === 'Excellent' ? '#10b981' : evaluation.rating === 'Good' ? '#f59e0b' : '#ef4444' }}>
+                    Rating: {evaluation.rating}
+                  </span>
+                  {countdown !== null && (
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Next question in {countdown}s...
+                    </span>
+                  )}
+                </div>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                  {evaluation.feedback}
+                </p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+              <button className="btn btn-primary" onClick={submitAndEvaluateAnswer} disabled={evaluation !== null || !currentQuestionTranscript}>
+                ✅ Submit Answer & Evaluate
+              </button>
+              <button className="btn btn-secondary" onClick={() => {
+                if (currentQuestionIdx + 1 < QUESTIONS.length) {
+                  const nextIdx = currentQuestionIdx + 1;
+                  setCurrentQuestionIdx(nextIdx);
+                  setCurrentQuestionTranscript('');
+                  speakText(QUESTIONS[nextIdx].question);
+                } else {
+                  endPractice();
+                }
+              }} disabled={evaluation !== null}>
+                ⏭️ Skip Question
+              </button>
+            </div>
           </div>
 
           <div className="session-grid">

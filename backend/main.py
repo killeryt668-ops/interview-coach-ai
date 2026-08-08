@@ -102,7 +102,7 @@ def transcribe_audio(audio_bytes: bytes) -> str:
             client = OpenAI(api_key=openai_api_key)
             
             # Save audio_bytes to a unique temp file to avoid race conditions
-            temp_filename = f"temp_{int(time.time())}_{random.randint(1000, 9999)}.wav"
+            temp_filename = f"temp_{int(time.time())}_{random.randint(1000, 9999)}.webm"
             with open(temp_filename, "wb") as f:
                 f.write(audio_bytes)
             
