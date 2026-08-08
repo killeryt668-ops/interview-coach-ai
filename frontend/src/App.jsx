@@ -536,7 +536,9 @@ export default function App() {
 
   const submitAndEvaluateAnswer = () => {
     const currentQuestion = QUESTIONS[currentQuestionIdx];
-    const answerText = currentQuestionTranscript.toLowerCase();
+    // Combine final transcript with any remaining interim text
+    const finalAnswer = (currentQuestionTranscript + ' ' + interimTranscript).trim();
+    const answerText = finalAnswer.toLowerCase();
     
     // Check keyword matches
     const matchedKeywords = currentQuestion.keywords.filter(keyword => answerText.includes(keyword));
@@ -563,10 +565,13 @@ export default function App() {
     setEvaluation({ rating, feedback });
     
     // Speak feedback out loud
-    const speakTextContent = `${rating} answer. ${feedback} Moving to the next question shortly.`;
+    const speakTextContent = rating === 'Needs Improvement'
+      ? `Answer needs improvement. Let's try this question again. ${feedback}`
+      : `${rating} answer. ${feedback} Moving to the next question shortly.`;
+      
     speakText(speakTextContent);
     
-    // Start 5-second countdown to next question
+    // Start 5-second countdown to next step
     let secondsLeft = 5;
     setCountdown(secondsLeft);
     
@@ -580,14 +585,23 @@ export default function App() {
         setCountdown(null);
         setEvaluation(null);
         
-        // Go to next question or end practice
-        if (currentQuestionIdx + 1 < QUESTIONS.length) {
-          const nextIdx = currentQuestionIdx + 1;
-          setCurrentQuestionIdx(nextIdx);
+        // Go to next question, retry, or end practice
+        if (rating === 'Needs Improvement') {
+          // Reset current question transcript and re-speak the question
           setCurrentQuestionTranscript('');
-          speakText(QUESTIONS[nextIdx].question);
+          setInterimTranscript('');
+          speakText(currentQuestion.question);
         } else {
-          endPractice();
+          // Advance or end
+          if (currentQuestionIdx + 1 < QUESTIONS.length) {
+            const nextIdx = currentQuestionIdx + 1;
+            setCurrentQuestionIdx(nextIdx);
+            setCurrentQuestionTranscript('');
+            setInterimTranscript('');
+            speakText(QUESTIONS[nextIdx].question);
+          } else {
+            endPractice();
+          }
         }
       }
     }, 1000);
@@ -603,6 +617,7 @@ export default function App() {
     setLiveSpeechHint('Speak clearly at a moderate volume.');
     setCurrentQuestionIdx(0);
     setCurrentQuestionTranscript('');
+    setInterimTranscript('');
     setEvaluation(null);
     setCountdown(null);
     if ('speechSynthesis' in window) {
@@ -779,11 +794,13 @@ export default function App() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Your Answer Transcript:</span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  {currentQuestionTranscript.split(/\s+/).filter(Boolean).length} words
+                  {((currentQuestionTranscript + ' ' + interimTranscript).split(/\s+/).filter(Boolean)).length} words
                 </span>
               </div>
-              <p style={{ margin: 0, fontSize: '0.95rem', minHeight: '2.5rem', color: currentQuestionTranscript ? 'var(--text-primary)' : 'var(--text-muted)', fontStyle: currentQuestionTranscript ? 'normal' : 'italic' }}>
-                {currentQuestionTranscript || "Start speaking into your mic to answer this question..."}
+              <p style={{ margin: 0, fontSize: '0.95rem', minHeight: '2.5rem', color: (currentQuestionTranscript || interimTranscript) ? 'var(--text-primary)' : 'var(--text-muted)', fontStyle: (currentQuestionTranscript || interimTranscript) ? 'normal' : 'italic' }}>
+                {currentQuestionTranscript}
+                <span style={{ color: 'rgba(255,255,255,0.5)' }}>{interimTranscript}</span>
+                {!(currentQuestionTranscript || interimTranscript) && "Start speaking into your mic to answer this question..."}
               </p>
             </div>
 
