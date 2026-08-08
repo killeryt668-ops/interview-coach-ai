@@ -44,6 +44,7 @@ export default function App() {
   const [currentQuestionTranscript, setCurrentQuestionTranscript] = useState('');
   const [evaluation, setEvaluation] = useState(null); // { rating: 'Good', feedback: '...' }
   const [countdown, setCountdown] = useState(null); // countdown seconds
+  const [interimTranscript, setInterimTranscript] = useState('');
   const [sessionId, setSessionId] = useState(null);
   
   // Media Stream States
