@@ -306,7 +306,10 @@ async def process_audio(
 
 
 @app.post("/get-report", response_model=ReportResponse)
-def get_report(session_id: str = Form(...)):
+def get_report(
+    session_id: str = Form(...),
+    full_transcript: Optional[str] = Form(None)
+):
     """
     Compiles all accumulated transcripts, emotions, and speech rate statistics,
     runs the LLM placeholder generator, and returns the final practice report.
@@ -322,8 +325,9 @@ def get_report(session_id: str = Form(...)):
     for emo in emotion_list:
         emotion_summary[emo] = emotion_summary.get(emo, 0) + 1
         
-    # Combine all transcripts
-    full_transcript = " ".join(session["transcripts"])
+    # Combine all transcripts (prefer frontend-provided full_transcript if available)
+    if not full_transcript:
+        full_transcript = " ".join(session["transcripts"])
     if not full_transcript:
         full_transcript = "No spoken responses were captured."
         

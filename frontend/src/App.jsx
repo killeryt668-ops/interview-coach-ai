@@ -70,6 +70,7 @@ export default function App() {
   const frameIntervalRef = useRef(null);
   const audioIntervalRef = useRef(null);
   const evaluationIntervalRef = useRef(null);
+  const speechRecognitionRef = useRef(null);
 
   // Always bind active media stream to videoRef whenever stream, screen, or cameraActive changes
   useEffect(() => {
@@ -91,6 +92,7 @@ export default function App() {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
     }
+    stopSpeechRecognition();
   };
 
   const clearIntervals = () => {
@@ -197,6 +199,7 @@ export default function App() {
       setEvaluation(null);
       setCountdown(null);
       speakText(QUESTIONS[0].question);
+      startSpeechRecognition();
       
       // Simulated frame capture loop
       frameIntervalRef.current = setInterval(async () => {
@@ -268,6 +271,7 @@ export default function App() {
       setEvaluation(null);
       setCountdown(null);
       speakText(QUESTIONS[0].question);
+      startSpeechRecognition();
       
       // Ensure local stream is properly assigned to the video element in practice view
       setTimeout(() => {
@@ -412,12 +416,14 @@ export default function App() {
     }
     
     stopAllMedia();
+    stopSpeechRecognition();
     setIsLoadingReport(true);
     setScreen('report');
 
     try {
       const formData = new FormData();
       formData.append('session_id', sessionId);
+      formData.append('full_transcript', transcripts.join(' ')); // Send real transcript from browser speech recognition
 
       const res = await fetch(`${API_BASE_URL}/get-report`, {
         method: 'POST',
@@ -435,6 +441,82 @@ export default function App() {
       setErrorMsg('Failed to process final interview report.');
     } finally {
       setIsLoadingReport(false);
+    }
+  };
+
+  const startSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn("Speech recognition not supported in this browser.");
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript + ' ';
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setCurrentQuestionTranscript(prev => {
+            const cleanPrev = prev.trim();
+            const cleanFinal = finalTranscript.trim();
+            if (cleanPrev.endsWith(cleanFinal) || cleanPrev.includes(cleanFinal)) {
+              return prev;
+            }
+            return prev ? prev + ' ' + cleanFinal : cleanFinal;
+          });
+          
+          setTranscripts(prev => {
+            const cleanFinal = finalTranscript.trim();
+            if (prev.includes(cleanFinal)) return prev;
+            return [...prev, cleanFinal];
+          });
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error);
+      };
+
+      recognition.onend = () => {
+        // Automatically restart if recording is still active
+        if (isRecording) {
+          try {
+            recognition.start();
+          } catch (e) {
+            console.warn("Speech recognition auto-restart failed:", e);
+          }
+        }
+      };
+
+      speechRecognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error("Failed to initialize Speech Recognition:", err);
+    }
+  };
+
+  const stopSpeechRecognition = () => {
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch (e) {
+        console.warn("Speech recognition stop failed:", e);
+      }
+      speechRecognitionRef.current = null;
     }
   };
 
