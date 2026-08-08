@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 // API Configuration
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export default function App() {
   const [screen, setScreen] = useState('home'); // 'home', 'setup', 'practice', 'report'

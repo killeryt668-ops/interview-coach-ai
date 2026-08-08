@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import sys
-sys.path.insert(0, '.')
+# Insert absolute path of the parent directory so that ai_model package is found in all run conditions
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from ai_model.emotional_intelligence_engine import EmotionalIntelligenceModel
 from ai_model.speaking_skills_engine import SpeakingSkillsModel
 
@@ -91,35 +92,36 @@ def analyze_emotion(frame_bytes: bytes) -> str:
 
 def transcribe_audio(audio_bytes: bytes) -> str:
     """
-    PLACEHOLDER: Convert spoken audio bytes into text.
-    
-    HOW TO IMPLEMENT THE REAL API LATER:
-    1. OpenAI Whisper API:
-       
-       import openai
-       # Save audio_bytes to a temp file because openai.Audio.transcribe requires a file-like object
-       with open("temp.wav", "wb") as f:
-           f.write(audio_bytes)
-       
-       audio_file = open("temp.wav", "rb")
-       transcript = openai.Audio.transcribe("whisper-1", audio_file)
-       return transcript["text"]
-
-    2. Google Cloud Speech-to-Text:
-       
-       from google.cloud import speech
-       client = speech.SpeechClient()
-       audio = speech.RecognitionAudio(content=audio_bytes)
-       config = speech.RecognitionConfig(
-           encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16, # Match frontend format
-           sample_rate_hertz=16000,
-           language_code="en-US",
-       )
-       response = client.recognize(config=config, audio=audio)
-       return " ".join([result.alternatives[0].transcript for result in response.results])
+    Convert spoken audio bytes into text using OpenAI Whisper if configured,
+    otherwise fallback to mock phrases.
     """
-    # Mocking STT transcripts
-    # We will pick from a list of simulated interview phrases or statements
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if openai_api_key:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_api_key)
+            
+            # Save audio_bytes to a unique temp file to avoid race conditions
+            temp_filename = f"temp_{int(time.time())}_{random.randint(1000, 9999)}.wav"
+            with open(temp_filename, "wb") as f:
+                f.write(audio_bytes)
+            
+            with open(temp_filename, "rb") as audio_file:
+                transcript = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file
+                )
+            
+            # Clean up the temp file
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+                
+            return transcript.text
+        except Exception as e:
+            print(f"Error calling OpenAI Whisper: {e}")
+            # Fall back to mock if Whisper fails
+            
+    # Mocking STT transcripts as fallback
     mock_phrases = [
         "I believe my biggest strength is my adaptability in high-pressure situations.",
         "In my previous project, I led a team of three developers to build a scalable pipeline.",
