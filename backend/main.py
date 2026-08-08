@@ -203,6 +203,10 @@ def get_llm_feedback(transcript: str, emotion_summary: dict, speech_metrics: dic
 # FASTAPI ENDPOINTS
 # ==========================================
 
+@app.get("/")
+def read_root():
+    return {"message": "Interview Coach AI Backend is running. Access API documentation at /docs"}
+
 @app.post("/start-interview", response_model=StartSessionResponse)
 def start_interview():
     """Initializes a new practice session."""
